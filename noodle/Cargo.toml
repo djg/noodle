@@ -1,0 +1,11 @@
+[package]
+name = "lib-noodle"
+version = "0.1.0"
+authors = ["Dan Glastonbury <dglastonbury@mozilla.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitflags = "1.1"
+winapi = { version = "*", features = ["d2d1", "d2d1_2","d3d11","dcomp", "dxgi", "dxgi1_3", "dxgi1_5", "dxgiformat", "dxgitype", "impl-default", "winuser"] }
