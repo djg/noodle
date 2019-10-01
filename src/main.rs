@@ -1,6 +1,8 @@
-use lib_noodle::{d2d, d3d11, dcomp, dxgi, winuser};
+#![feature(clamp)]
+
+use lib_noodle::{d2d, d3d11, dcomp, dxgi, winuser, Rect};
 use std::ffi::OsStr;
-use winapi::um::winuser::*;
+use winapi::um::{winuser::*};
 
 struct ExampleWindow;
 
@@ -20,6 +22,33 @@ impl winuser::WindowDelegate for ExampleWindow {
     }
 }
 
+fn hls_to_rgb(h: f32, s: f32, l: f32) -> (f32, f32, f32) {
+    use std::f32::consts::{FRAC_PI_3, PI};
+
+    s.clamp(0.0, 1.0);
+    l.clamp(0.0, 1.0);
+
+    let h = h % (2.0 * PI);
+    let c = s * (1.0 - (2.0 * l - 1.0).abs());
+    let x = c * (1.0 - (((h / FRAC_PI_3) % 2.0) - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = match h {
+        h if h < 1.0 * FRAC_PI_3 => (c, x, 0.0),
+        h if h < 2.0 * FRAC_PI_3 => (x, c, 0.0),
+        h if h < 3.0 * FRAC_PI_3 => (0.0, c, x),
+        h if h < 4.0 * FRAC_PI_3 => (0.0, x, c),
+        h if h < 5.0 * FRAC_PI_3 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    (r + m, g + m, b + m)
+}
+
+/// Convert `a` in range [0..3600] into radians
+fn to_radians(a: u32) -> f32 {
+    use std::f32::consts::PI;
+    PI * (a as f32) / 1800.0
+}
+
 fn main() {
     let mut delegate = ExampleWindow;
     let window = winuser::Window::create(
@@ -32,23 +61,7 @@ fn main() {
     .unwrap();
 
     let d3d11_device = d3d11::create_hardware_device();
-    let dxgi_device: dxgi::Device = d3d11_device.query_interface().unwrap();
-    let dxgi_factory: dxgi::Factory2 = dxgi::create_factory_2(true);
-
-    let rect = window.client_rect().unwrap();
-    let desc = dxgi::SwapChainDesc1 {
-        Width: rect.width() as u32,
-        Height: rect.height() as u32,
-        Format: dxgi::Format::Bgra8.into(),
-        BufferUsage: dxgi::Usage::RENDER_TARGET_OUTPUT.into(),
-        SwapEffect: dxgi::SwapEffect::FlipSequential.into(),
-        BufferCount: 2,
-        SampleDesc: dxgi::SampleDesc::NoAntiAliasing.into(),
-        AlphaMode: dxgi::AlphaMode::Premultiplied.into(),
-        ..Default::default()
-    };
-
-    let swap_chain = dxgi_factory.create_swap_chain_for_composition(&dxgi_device, &desc, None);
+    let dxgi_device: dxgi::Device = d3d11_device.as_().unwrap();
 
     // Create a single-threaded Direct2D factory with debugging information
     let options: d2d::FactoryOptions = d2d::DebugLevel::Information.into();
@@ -56,13 +69,34 @@ fn main() {
 
     // Create the Direct2D device that links back to the Direct3D device
     let d2d_device: d2d::Device1 = d2d_factory.create_device(&dxgi_device);
-
     // Create the Direct2D device context that is the actual render target
     // and exposes drawing commands
-    let dc: d2d::DeviceContext = d2d_device.create_device_context();
+    let d2d_dc: d2d::DeviceContext1 = d2d_device.create_device_context();
 
-    // Retrieve the swap chain's back buffer
-    let surface: dxgi::Surface2 = swap_chain.get_buffer(0);
+    let dcomp_device: dcomp::DesktopDevice = dcomp::create_device_2(&dxgi_device);
+    //let dcomp_device: dcomp::DesktopDevice = dcomp::create_device_2(&d2d_device);
+    let dcomp_device_debug: dcomp::DeviceDebug = dcomp_device.as_().unwrap();
+    dcomp_device_debug.enable_debug_counters();
+
+    let rect = window.client_rect();
+    let surface = dcomp_device.create_surface(
+        rect.width() as u32,
+        rect.height() as u32,
+        dxgi::Format::Bgra8,
+        //dxgi::AlphaMode::Ignore,
+        dxgi::AlphaMode::Premultiplied,
+    );
+
+    let visual = dcomp_device.create_visual();
+    visual.set_content(&surface);
+
+    if false {
+        let visual_debug: dcomp::VisualDebug = visual.as_().unwrap();
+        visual_debug.enable_redraw_regions();
+    }
+
+    let target = dcomp_device.create_target_for_hwnd(window, true);
+    target.set_root(&visual);
 
     // Create a Direct2D bitmap that points to the swap chain surface
     let properties = d2d::BitmapProperties1 {
@@ -74,44 +108,57 @@ fn main() {
         ..Default::default()
     };
 
-    let bitmap = dc.create_bitmap_from_dxgi_surface(&surface, &properties);
+    surface.draw(None, |dxgi_surface, _| {
+        let bitmap: d2d::Bitmap1 = d2d_dc.create_bitmap_from_dxgi_surface(&dxgi_surface, &properties);
 
-    // Point the device context to the bitmap for rendering
-    dc.set_target(&bitmap);
+            // Point the device context to the bitmap for rendering
+            d2d_dc.set_target(&bitmap);
 
-    // Draw something
-    dc.begin_draw();
-    {
-        dc.clear();
-
-        let brush_color = d2d::ColorF {
-            r: 0.18,
-            g: 0.55,
-            b: 0.34,
-            a: 0.75,
-        };
-        let brush = dc.create_solid_color_brush(&brush_color, None);
-        let ellipse_center = d2d::Point2F { x: 150.0, y: 150.0 };
-        let ellipse = d2d::Ellipse {
-            point: ellipse_center,
-            radiusX: 100.0,
-            radiusY: 100.0,
-        };
-        dc.fill_ellipse(&ellipse, &brush);
-    }
-    dc.end_draw();
-
-    // Make the swap chain available to the composition engine
-    swap_chain.present(1, 0);
-
-    let dcomp_device: dcomp::Device = dcomp::create_device(&dxgi_device);
-    let visual = dcomp_device.create_visual();
-    visual.set_content(&swap_chain);
-
-    let target = dcomp_device.create_target_for_hwnd(window, true);
-    target.set_root(&visual);
-
+            // Draw something
+            d2d_dc.draw(|dc| {
+                dc.clear(None);
+           });
+    });
     dcomp_device.commit();
 
-    winuser::run_loop();
+    let mut angle = 0u32;
+
+    loop {
+        if winuser::process_pending_events() {
+            break;
+        }
+
+        surface.draw(&Rect {left: 50, top: 50, right: 250, bottom: 250 }, |dxgi_surface, offset| {
+            let bitmap: d2d::Bitmap1 =
+                d2d_dc.create_bitmap_from_dxgi_surface(&dxgi_surface, &properties);
+
+            // Point the device context to the bitmap for rendering
+            d2d_dc.set_target(&bitmap);
+
+            // Draw something
+            d2d_dc.draw(|dc| {
+                dc.clear(None);
+
+                let (r, g, b) = hls_to_rgb(to_radians(angle), 1.0, 0.5);
+
+                let brush_color = d2d::ColorF { r, g, b, a: 1.0 };
+                let brush = dc.create_solid_color_brush(&brush_color, None);
+                let ellipse_center = d2d::Point2F {
+                    x: offset.x as f32 + 100.0,
+                    y: offset.y as f32 + 100.0,
+                };
+                let ellipse = d2d::Ellipse {
+                    point: ellipse_center,
+                    radiusX: 100.0,
+                    radiusY: 100.0,
+                };
+                dc.fill_ellipse(&ellipse, &brush);
+            });
+        });
+
+        dcomp_device.commit();
+        dcomp_device.wait_for_commit_completion();
+
+        angle = if angle < 3600 { angle + 1 } else { 0 };
+    }
 }

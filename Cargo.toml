@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 lib-noodle = { path="noodle" }
-winapi = { version = "*", features = ["winuser"] }
+winapi = { version = "*", features = ["profileapi","winuser"] }
 
 [workspace]
 members = [ "noodle" ]

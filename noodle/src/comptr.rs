@@ -27,8 +27,8 @@ where
             if !ptr.is_null() {
                 (*(ptr as *mut IUnknown)).AddRef();
             }
+            ComPtr { ptr }
         }
-        ComPtr { ptr }
     }
 
     pub unsafe fn already_addrefed(ptr: *mut T) -> Self {
@@ -64,16 +64,16 @@ where
         }
     }
 
-    pub fn add_ref(&self) {
-        unsafe {
-            assert!(!self.ptr.is_null());
-            (*(self.ptr as *mut IUnknown)).AddRef();
-        }
+    pub unsafe fn add_ref(&self) {
+        assert!(!self.ptr.is_null());
+        let unknwn = self.ptr as *mut IUnknown;
+        (*unknwn).AddRef();
     }
 
     pub unsafe fn release(&self) {
         if !self.ptr.is_null() {
-            (*(self.ptr as *mut IUnknown)).Release();
+            let unknwn = self.ptr as *mut IUnknown;
+            (*unknwn).Release();
         }
     }
 
@@ -94,7 +94,9 @@ where
 {
     fn clone(&self) -> Self {
         if !self.ptr.is_null() {
-            self.add_ref();
+            unsafe {
+                self.add_ref();
+            }
         }
         ComPtr { ptr: self.ptr }
     }

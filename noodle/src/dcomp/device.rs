@@ -1,78 +1,67 @@
-use super::{Surface, Target, VirtualSurface, Visual};
-use crate::{dxgi, impl_comptr, winuser};
-use winapi::um::{dcomp::IDCompositionDevice, unknwnbase::IUnknown};
+use super::Target;
+use crate::{impl_comptr, impl_interface, winuser, ComPtr};
+use winapi::um::{
+    dcomp::{
+        IDCompositionDesktopDevice, IDCompositionDevice, IDCompositionDevice2,
+        IDCompositionDeviceDebug, IDCompositionTarget,
+    },
+    unknwnbase::IUnknown,
+};
 
 impl_comptr! { Device: [IDCompositionDevice, IUnknown] }
+impl_comptr! { Device2: [IDCompositionDevice2, IUnknown] }
+impl_comptr! { DesktopDevice: [IDCompositionDesktopDevice, IDCompositionDevice2, IUnknown] }
+impl_comptr! { DeviceDebug: [IDCompositionDeviceDebug, IUnknown] }
 
-impl Device {
-    pub fn commit(&self) {
-        unsafe {
-            let hr = self.Commit();
-            assert!(hr == 0);
+impl_interface! {
+    impl [Device, DesktopDevice] {
+        pub fn create_target_for_hwnd(&self, window: winuser::Window, top_most: bool) -> Target {
+            unsafe {
+                let mut target = ComPtr::<IDCompositionTarget>::default();
+                let hr = self.0.CreateTargetForHwnd(
+                    window.as_hwnd(),
+                    top_most as i32,
+                    target.getter_addrefs(),
+                );
+                assert!(hr == 0);
+                target.into()
+            }
         }
     }
+}
 
-    pub fn create_target_for_hwnd(&self, window: winuser::Window, top_most: bool) -> Target {
-        unsafe {
-            let mut target = Target::default();
-            let hr = self.CreateTargetForHwnd(
-                window.as_hwnd(),
-                top_most as i32,
-                target.getter_addrefs(),
-            );
-            assert!(hr == 0);
-            target
+impl_interface! {
+    impl [Device, Device2, DesktopDevice] {
+        pub fn commit(&self) {
+            unsafe {
+                let hr = self.0.Commit();
+                assert!(hr == 0);
+            }
+        }
+
+        pub fn wait_for_commit_completion(&self) {
+            unsafe {
+                let hr = self.0.WaitForCommitCompletion();
+                assert!(hr == 0);
+            }
         }
     }
+}
 
-    pub fn create_visual(&self) -> Visual {
-        unsafe {
-            let mut visual = Visual::default();
-            let hr = self.CreateVisual(visual.getter_addrefs());
-            assert!(hr == 0);
-            visual
+impl_interface! {
+    impl DeviceDebug {
+        pub fn disable_debug_counters(&self) {
+            unsafe {
+                let hr = self.0.DisableDebugCounters();
+                assert!(hr == 0);
+            }
         }
-    }
 
-    pub fn create_surface(
-        &self,
-        width: u32,
-        height: u32,
-        pixel_format: dxgi::Format,
-        alpha_mode: dxgi::AlphaMode,
-    ) -> Surface {
-        unsafe {
-            let mut surface = Surface::default();
-            let hr = self.CreateSurface(
-                width,
-                height,
-                pixel_format.into(),
-                alpha_mode.into(),
-                surface.getter_addrefs(),
-            );
-            assert!(hr == 0);
-            surface
-        }
-    }
-
-    pub fn create_virtual_surface(
-        &self,
-        initial_width: u32,
-        initial_height: u32,
-        pixel_format: dxgi::Format,
-        alpha_mode: dxgi::AlphaMode,
-    ) -> VirtualSurface {
-        unsafe {
-            let mut surface = VirtualSurface::default();
-            let hr = self.CreateVirtualSurface(
-                initial_width,
-                initial_height,
-                pixel_format.into(),
-                alpha_mode.into(),
-                surface.getter_addrefs(),
-            );
-            assert!(hr == 0);
-            surface
+        pub fn enable_debug_counters(&self) {
+            unsafe {
+                let hr = self.0.EnableDebugCounters();
+                assert!(hr == 0);
+            }
         }
     }
 }

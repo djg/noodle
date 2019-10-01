@@ -22,7 +22,7 @@ pub use winapi::um::dcommon::D2D1_PIXEL_FORMAT as PixelFormat;
 
 pub use bitmap::{Bitmap, Bitmap1};
 pub use device::Device1;
-pub use device_context::DeviceContext;
+pub use device_context::DeviceContext1;
 pub use factory::*;
 pub use solid_color_brush::*;
 

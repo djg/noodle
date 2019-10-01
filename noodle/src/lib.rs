@@ -9,6 +9,9 @@ pub mod dcomp;
 pub mod dxgi;
 pub mod winuser;
 
+pub use comptr::ComPtr;
+pub use winapi::shared::windef::{POINT as Point, RECT as Rect};
+
 use std::ptr::{self};
 
 pub trait AsPtr<T> {
@@ -21,6 +24,15 @@ where
 {
     fn as_ptr(&self) -> *mut T {
         self.as_ref().map(AsPtr::as_ptr).unwrap_or(ptr::null_mut())
+    }
+}
+
+impl<'a, T, U> AsPtr<T> for &'a U
+where
+    U: AsPtr<T>,
+{
+    fn as_ptr(&self) -> *mut T {
+        (*self).as_ptr()
     }
 }
 

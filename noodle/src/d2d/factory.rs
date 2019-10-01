@@ -12,10 +12,9 @@ use winapi::{
 
 impl_comptr! { Factory2: [ID2D1Factory2, ID2D1Factory1, ID2D1Factory]}
 
-pub fn create_single_threaded_factory<'a, I>(
-    options: impl Into<Option<&'a FactoryOptions>>,
-) -> ComPtr<I>
+pub fn create_single_threaded_factory<'a, I, T>(options: impl Into<Option<&'a FactoryOptions>>) -> T
 where
+    T: From<ComPtr<I>>,
     I: Interface,
 {
     unsafe {
@@ -27,20 +26,23 @@ where
             native.getter_addrefs(),
         );
         assert!(hr == 0);
-        native
+        native.into()
     }
 }
 
 impl Factory2 {
-    pub fn create_device<I>(&self, device: &impl AsPtr<IDXGIDevice>) -> ComPtr<I>
+    pub fn create_device<I, T>(&self, device: &impl AsPtr<IDXGIDevice>) -> T
     where
+        T: From<ComPtr<I>>,
         I: Interface,
     {
         unsafe {
             let mut native = ComPtr::<I>::default();
-            let hr = self.CreateDevice(device.as_ptr(), native.getter_addrefs());
+            let hr = self
+                .0
+                .CreateDevice(device.as_ptr(), native.getter_addrefs());
             assert!(hr == 0);
-            native
+            native.into()
         }
     }
 }

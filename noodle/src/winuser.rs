@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, io::Error, os::windows::ffi::OsStrExt, ptr};
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
 use winapi::{shared::minwindef::*, shared::windef::*, um::winuser::*};
 
 extern "C" {
@@ -75,6 +75,11 @@ unsafe extern "system" fn wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    // eprintln!(
+    //     "wnd_proc: hwnd={:p}, msg=0x{:x}, wparam={}, lparam={}",
+    //     hwnd, msg, wparam, lparam,
+    // );
+
     let window = Window::from_hwnd(hwnd).expect("Expected hwnd");
 
     let inner = match msg {
@@ -228,12 +233,11 @@ impl<'a> Window<'a> {
         self.0.as_ptr()
     }
 
-    pub fn client_rect(self) -> std::io::Result<Rect> {
+    pub fn client_rect(self) -> Rect {
         let mut rect = Default::default();
-        if unsafe { GetClientRect(self.as_hwnd(), &mut rect) } == 0 {
-            return Err(Error::last_os_error());
-        }
-        Ok(Rect(rect))
+        let ok = unsafe { GetClientRect(self.as_hwnd(), &mut rect) };
+        assert!(ok == TRUE);
+        Rect(rect)
     }
 }
 
@@ -248,16 +252,33 @@ pub fn post_quit_message(exit_code: i32) {
     unsafe { PostQuitMessage(exit_code) }
 }
 
+pub fn process_pending_events() -> bool {
+    let mut msg = Default::default();
+    unsafe {
+        while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) > FALSE {
+            DispatchMessageW(&msg);
+
+            if msg.message == WM_QUIT {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 pub fn run_loop() {
     let mut msg = Default::default();
-    loop {
-        let result = unsafe { GetMessageW(&mut msg, ptr::null_mut(), 0, 0) };
-        match result {
-            FALSE => return,
-            TRUE => unsafe {
-                DispatchMessageW(&msg);
-            },
-            _ => {}
+    unsafe {
+        loop {
+            let result = GetMessageW(&mut msg, ptr::null_mut(), 0, 0);
+            match result {
+                FALSE => return,
+                TRUE => {
+                    DispatchMessageW(&msg);
+                }
+                n => panic!("GetMessageW returned error: {}", n),
+            }
         }
     }
 }

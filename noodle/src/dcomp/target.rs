@@ -9,7 +9,7 @@ impl_comptr! { Target: [IDCompositionTarget, IUnknown] }
 impl Target {
     pub fn set_root(&self, visual: &impl AsPtr<IDCompositionVisual>) {
         unsafe {
-            let hr = self.SetRoot(visual.as_ptr());
+            let hr = self.0.SetRoot(visual.as_ptr());
             assert!(hr == 0);
         }
     }
