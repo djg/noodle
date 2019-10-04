@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! impl_comptr {
     ($name:ident: [$com:ty, $($extra:ty),*]) => {
-        #[derive(Default)]
+        #[derive(Clone, Default)]
         pub struct $name(crate $crate::comptr::ComPtr<$com>);
 
         //pub type $name = $crate::comptr::ComPtr<$com>;

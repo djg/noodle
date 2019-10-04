@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.1"
+derive-newtype = "0.2"
+itertools = "0.8"
 winapi = { version = "*", features = [
     "d2d1",
     "d2d1_2",
@@ -20,3 +22,7 @@ winapi = { version = "*", features = [
     "dxgitype",
     "impl-default",
     "winuser" ] }
+
+[features]
+default = []
+paint-flashing = []

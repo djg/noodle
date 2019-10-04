@@ -107,6 +107,17 @@ impl_interface! {
                 assert!(hr == 0);
             }
         }
+
+        pub fn set_offset(&self, offset: [f32;2]) {
+            let hr = unsafe {
+                self.0.SetOffsetX_1(offset[0])
+            };
+            assert!(hr == 0);
+            let hr = unsafe {
+                self.0.SetOffsetY_1(offset[1])
+            };
+            assert!(hr == 0);
+        }
     }
 }
 

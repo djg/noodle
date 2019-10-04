@@ -1,28 +1,21 @@
 #![feature(clamp)]
 
-use noodle::{d2d, d3d11, dcomp, dxgi, winuser, Rect};
+use noodle::{d2d, d3d11, dcomp, dxgi, rect, winuser};
 use std::ffi::OsStr;
-use winapi::um::{winuser::*};
+use winapi::um::winuser::*;
 
-struct ExampleWindow;
-
-impl winuser::WindowDelegate for ExampleWindow {
-    fn class_name(&self) -> &OsStr {
-        OsStr::new("window")
-    }
-    fn handle_message(&mut self, message: winuser::Message) -> isize {
-        use winuser::MessageKind;
-        match message.kind {
-            MessageKind::Destroy => {
-                winuser::post_quit_message(0);
-                0
-            }
-            _ => winuser::default_handle_message(message),
+fn handle_message(message: &winuser::Message) -> bool {
+    use winuser::MessageKind;
+    match message.kind {
+        MessageKind::Destroy => {
+            winuser::post_quit_message(0);
+            true
         }
+        _ => false,
     }
 }
 
-fn hls_to_rgb(h: f32, s: f32, l: f32) -> (f32, f32, f32) {
+fn hls_to_rgb(h: f32, s: f32, l: f32) -> [f32; 3] {
     use std::f32::consts::{FRAC_PI_3, PI};
 
     s.clamp(0.0, 1.0);
@@ -40,7 +33,7 @@ fn hls_to_rgb(h: f32, s: f32, l: f32) -> (f32, f32, f32) {
         h if h < 5.0 * FRAC_PI_3 => (x, 0.0, c),
         _ => (c, 0.0, x),
     };
-    (r + m, g + m, b + m)
+    [r + m, g + m, b + m]
 }
 
 /// Convert `a` in range [0..3600] into radians
@@ -50,9 +43,8 @@ fn to_radians(a: u32) -> f32 {
 }
 
 fn main() {
-    let mut delegate = ExampleWindow;
     let window = winuser::Window::create(
-        &mut delegate,
+        OsStr::new("window"),
         OsStr::new("Sample"),
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
         800,
@@ -109,26 +101,27 @@ fn main() {
     };
 
     surface.draw(None, |dxgi_surface, _| {
-        let bitmap: d2d::Bitmap1 = d2d_dc.create_bitmap_from_dxgi_surface(&dxgi_surface, &properties);
+        let bitmap: d2d::Bitmap1 =
+            d2d_dc.create_bitmap_from_dxgi_surface(&dxgi_surface, &properties);
 
-            // Point the device context to the bitmap for rendering
-            d2d_dc.set_target(&bitmap);
+        // Point the device context to the bitmap for rendering
+        d2d_dc.set_target(&bitmap);
 
-            // Draw something
-            d2d_dc.draw(|dc| {
-                dc.clear(None);
-           });
+        // Draw something
+        d2d_dc.draw(|dc| {
+            dc.clear(None);
+        });
     });
     dcomp_device.commit();
 
     let mut angle = 0u32;
 
     loop {
-        if winuser::process_pending_events() {
+        if winuser::process_pending_events(handle_message) {
             break;
         }
 
-        surface.draw(&Rect {left: 50, top: 50, right: 250, bottom: 250 }, |dxgi_surface, offset| {
+        surface.draw(&rect!(50, 50, 250, 250,), |dxgi_surface, offset| {
             let bitmap: d2d::Bitmap1 =
                 d2d_dc.create_bitmap_from_dxgi_surface(&dxgi_surface, &properties);
 
@@ -139,9 +132,9 @@ fn main() {
             d2d_dc.draw(|dc| {
                 dc.clear(None);
 
-                let (r, g, b) = hls_to_rgb(to_radians(angle), 1.0, 0.5);
+                let rgb = hls_to_rgb(to_radians(angle), 1.0, 0.5);
 
-                let brush_color = d2d::ColorF { r, g, b, a: 1.0 };
+                let brush_color = d2d::Color::new(rgb);
                 let brush = dc.create_solid_color_brush(&brush_color, None);
                 let ellipse_center = d2d::Point2F {
                     x: offset.x as f32 + 100.0,

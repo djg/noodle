@@ -1,4 +1,5 @@
-use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
+use crate::{text::ToUtf16, Rect};
+use std::{cell::Cell, ffi::OsStr, ptr};
 use winapi::{shared::minwindef::*, shared::windef::*, um::winuser::*};
 
 extern "C" {
@@ -9,65 +10,17 @@ pub fn get_module_handle() -> HINSTANCE {
     unsafe { &__ImageBase as *const u8 as HINSTANCE }
 }
 
-trait ToUtf16 {
-    fn to_utf16(&self) -> Vec<u16>;
-}
-
-impl ToUtf16 for OsStr {
-    fn to_utf16(&self) -> Vec<u16> {
-        self.encode_wide().chain(Some(0)).collect()
-    }
-}
-
-pub fn to_utf16(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(Some(0).into_iter()).collect()
-}
-
 #[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct Rect(RECT);
-
-impl Rect {
-    pub fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
-        Self(RECT {
-            left,
-            top,
-            right,
-            bottom,
-        })
-    }
-
-    pub fn width(&self) -> i32 {
-        self.right - self.left
-    }
-
-    pub fn height(&self) -> i32 {
-        self.bottom - self.top
-    }
+enum State {
+    // WndProc handler not defined
+    Unarmed,
+    // WndProc handler defined
+    Armed(*mut dyn FnMut(&Message) -> bool),
 }
 
-impl Default for Rect {
-    fn default() -> Self {
-        Self(Default::default())
-    }
+thread_local! {
+    static WND_PROC: Cell<State> = Cell::new(State::Unarmed)
 }
-
-impl std::ops::Deref for Rect {
-    type Target = RECT;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl PartialEq for Rect {
-    fn eq(&self, other: &Self) -> bool {
-        self.left == other.left
-            && self.top == other.top
-            && self.right == other.right
-            && self.bottom == other.bottom
-    }
-}
-impl Eq for Rect {}
 
 unsafe extern "system" fn wnd_proc(
     hwnd: HWND,
@@ -75,38 +28,21 @@ unsafe extern "system" fn wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    // eprintln!(
-    //     "wnd_proc: hwnd={:p}, msg=0x{:x}, wparam={}, lparam={}",
-    //     hwnd, msg, wparam, lparam,
-    // );
-
     let window = Window::from_hwnd(hwnd).expect("Expected hwnd");
-
-    let inner = match msg {
-        WM_NCCREATE => {
-            let create = &*(lparam as *const CREATESTRUCTW);
-            let inner = create.lpCreateParams as *mut Inner;
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, inner as _);
-            inner
-        }
-        WM_NCDESTROY => {
-            let inner = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Inner;
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            if !inner.is_null() {
-                let _ = Box::from_raw(inner);
-            }
-            return 0;
-        }
-        _ => GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Inner,
-    };
-
     let message = Message {
         window,
         kind: (msg, wparam, lparam).into(),
     };
+    let handled = WND_PROC.with(|wnd_proc| match wnd_proc.get() {
+        State::Armed(handler_ptr) => {
+            let handler = &mut *handler_ptr;
+            handler(&message)
+        }
+        State::Unarmed => false,
+    });
 
-    if let Some(inner) = inner.as_mut() {
-        inner.delegate.handle_message(message)
+    if handled {
+        0
     } else {
         default_handle_message(message)
     }
@@ -115,6 +51,11 @@ unsafe extern "system" fn wnd_proc(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageKind {
     Destroy,
+    Paint,
+    Size {
+        width: i32,
+        height: i32,
+    },
     Other {
         msg: UINT,
         wparam: WPARAM,
@@ -127,6 +68,11 @@ impl From<(UINT, WPARAM, LPARAM)> for MessageKind {
         let (msg, wparam, lparam) = t;
         match msg {
             WM_DESTROY => MessageKind::Destroy,
+            WM_PAINT => MessageKind::Paint,
+            WM_SIZE => MessageKind::Size {
+                width: LOWORD(lparam as DWORD) as i32,
+                height: HIWORD(lparam as DWORD) as i32,
+            },
             _ => MessageKind::Other {
                 msg,
                 wparam,
@@ -140,6 +86,12 @@ impl From<MessageKind> for (UINT, WPARAM, LPARAM) {
     fn from(msg: MessageKind) -> (UINT, WPARAM, LPARAM) {
         match msg {
             MessageKind::Destroy => (WM_DESTROY, 0, 0),
+            MessageKind::Paint => (WM_PAINT, 0, 0),
+            MessageKind::Size { width, height } => (
+                WM_SIZE,
+                0,
+                MAKELONG(width as WORD, height as WORD) as LPARAM,
+            ),
             MessageKind::Other {
                 msg,
                 wparam,
@@ -148,32 +100,31 @@ impl From<MessageKind> for (UINT, WPARAM, LPARAM) {
         }
     }
 }
+
+#[derive(Debug)]
 pub struct Message<'a> {
     pub window: Window<'a>,
     pub kind: MessageKind,
 }
 
-pub trait WindowDelegate {
-    fn class_name(&self) -> &OsStr;
-    fn handle_message(&mut self, message: Message) -> isize;
-}
-
-struct Inner<'a> {
-    delegate: &'a mut dyn WindowDelegate,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Window<'a>(ptr::NonNull<HWND__>, std::marker::PhantomData<&'a mut ()>);
 
+impl std::fmt::Debug for Window<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Window({:p}", &self.0.as_ptr())
+    }
+}
+
 impl<'a> Window<'a> {
     pub fn create(
-        delegate: &'a mut dyn WindowDelegate,
+        class_name: &OsStr,
         window_name: &OsStr,
         style: u32,
         width: i32,
         height: i32,
     ) -> Option<Window<'a>> {
-        let class_name = delegate.class_name().to_utf16();
+        let class_name = class_name.to_utf16();
         let window_name = window_name.to_utf16();
 
         let mut wc = WNDCLASSW::default();
@@ -185,8 +136,6 @@ impl<'a> Window<'a> {
         unsafe {
             RegisterClassW(&wc);
         }
-
-        let inner = Box::leak(Box::new(Inner { delegate })) as *mut Inner;
 
         let ex_style = WS_EX_NOREDIRECTIONBITMAP;
         let x = CW_USEDEFAULT;
@@ -207,7 +156,7 @@ impl<'a> Window<'a> {
                 wnd_parent,
                 menu,
                 get_module_handle(),
-                inner as *mut _,
+                ptr::null_mut(),
             )
         };
 
@@ -237,7 +186,14 @@ impl<'a> Window<'a> {
         let mut rect = Default::default();
         let ok = unsafe { GetClientRect(self.as_hwnd(), &mut rect) };
         assert!(ok == TRUE);
-        Rect(rect)
+        rect.into()
+    }
+
+    pub fn window_rect(self) -> Rect {
+        let mut rect = Default::default();
+        let ok = unsafe { GetWindowRect(self.as_hwnd(), &mut rect) };
+        assert!(ok == TRUE);
+        rect.into()
     }
 }
 
@@ -252,21 +208,47 @@ pub fn post_quit_message(exit_code: i32) {
     unsafe { PostQuitMessage(exit_code) }
 }
 
-pub fn process_pending_events() -> bool {
-    let mut msg = Default::default();
-    unsafe {
-        while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) > FALSE {
-            DispatchMessageW(&msg);
-
-            if msg.message == WM_QUIT {
-                return true;
-            }
+pub fn process_pending_events<F>(mut f: F) -> bool
+where
+    F: FnMut(&Message) -> bool,
+{
+    struct Reset<'a>(&'a Cell<State>, State);
+    impl Drop for Reset<'_> {
+        fn drop(&mut self) {
+            self.0.set(self.1);
         }
     }
 
-    false
+    unsafe fn hide_lt<'a>(
+        p: *mut (dyn FnMut(&Message) -> bool + 'a),
+    ) -> *mut (dyn FnMut(&Message) -> bool + 'static) {
+        #[allow(clippy::transmute_ptr_to_ptr)]
+        std::mem::transmute(p)
+    }
+
+    unsafe {
+        WND_PROC.with(|cell| {
+            let was = cell.get();
+            let _reset = Reset(cell, was);
+
+            let handler_ptr = hide_lt(&mut f as &mut _ as *mut _);
+            cell.set(State::Armed(handler_ptr));
+
+            let mut msg = Default::default();
+            while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) > FALSE {
+                DispatchMessageW(&msg);
+
+                if msg.message == WM_QUIT {
+                    return true;
+                }
+            }
+
+            false
+        })
+    }
 }
 
+/*
 pub fn run_loop() {
     let mut msg = Default::default();
     unsafe {
@@ -282,3 +264,4 @@ pub fn run_loop() {
         }
     }
 }
+*/

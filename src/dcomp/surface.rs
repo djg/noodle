@@ -1,6 +1,6 @@
 use crate::{
     dcomp::{DesktopDevice, Device, Device2},
-    dxgi, impl_comptr, impl_interface, opt_ptr, ComPtr, Point, Rect,
+    dxgi, impl_comptr, impl_interface, opt_ptr, ComPtr, Offset, Rect,
 };
 use std::convert::TryInto;
 use winapi::{
@@ -66,66 +66,24 @@ impl_interface! {
         pub fn draw<'a>(
             &self,
             update_rect: impl Into<Option<&'a Rect>>,
-            mut f: impl FnMut(&dxgi::Surface, &Point))
+            mut f: impl FnMut(&dxgi::Surface, Offset))
         {
             let mut update_object = ComPtr::<IDXGISurface>::default();
-            let mut update_offset = Point::default();
+            let mut update_offset = Offset::default();
             let hr = unsafe {
                 self.0.BeginDraw(
                     opt_ptr(update_rect.into()),
                     &IDXGISurface::uuidof(),
                     update_object.getter_addrefs(),
-                    &mut update_offset)
+                    &mut *update_offset)
             };
             assert!(hr == 0);
             let surface = update_object.into();
-            f(&surface, &update_offset);
+            f(&surface, update_offset);
             let hr = unsafe {
                 self.0.EndDraw()
             };
             assert!(hr == 0);
-        }
-
-        pub fn begin_draw<'a, T, I>(
-            &self,
-            update_rect: impl Into<Option<&'a Rect>>,
-             ) -> (T, Point)
-        where
-            T: From<ComPtr<I>>,
-            I: Interface
-        {
-            unsafe {
-                let mut update_object = ComPtr::<I>::default();
-                let mut update_offset = Point::default();
-                let hr = self.0.BeginDraw(
-                    opt_ptr(update_rect.into()),
-                    &I::uuidof(),
-                    update_object.getter_addrefs(),
-                    &mut update_offset);
-                assert!(hr == 0);
-                (update_object.into(), update_offset)
-            }
-        }
-
-        pub fn end_draw(&self) {
-            unsafe {
-                let hr = self.0.EndDraw();
-                assert!(hr == 0);
-            }
-        }
-
-        pub fn suspend_draw(&self) {
-            unsafe {
-                let hr = self.0.SuspendDraw();
-                assert!(hr == 0);
-            }
-        }
-
-        pub fn resume_draw(&self) {
-            unsafe {
-                let hr = self.0.ResumeDraw();
-                assert!(hr == 0);
-            }
         }
 
         pub fn scroll<'a>(
@@ -157,7 +115,10 @@ impl VirtualSurface {
 
     pub fn trim(&self, rects: &[Rect]) {
         unsafe {
-            let hr = self.0.Trim(rects.as_ptr(), rects.len().try_into().unwrap());
+            // Rect is a thin wrapper around RECT, so &[Rect] is &[RECT]
+            let hr = self
+                .0
+                .Trim(rects.as_ptr() as *const _, rects.len().try_into().unwrap());
             assert!(hr == 0);
         }
     }
