@@ -1,3 +1,4 @@
+#![warn(clippy::all)]
 #![feature(clamp)]
 
 use itertools::iproduct;
@@ -7,17 +8,17 @@ use noodle::{
 use std::ffi::OsStr;
 use winapi::um::{d3d11::D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION, winuser::*};
 
-fn hls_to_rgb(h: f32, s: f32, l: f32) -> [f32; 3] {
+fn hls_to_rgb(hue: f32, saturation: f32, lightness: f32) -> [f32; 3] {
     use std::f32::consts::{FRAC_PI_3, PI};
 
-    s.clamp(0.0, 1.0);
-    l.clamp(0.0, 1.0);
+    let saturation = saturation.clamp(0.0, 1.0);
+    let lightness = lightness.clamp(0.0, 1.0);
 
-    let h = h % (2.0 * PI);
-    let c = s * (1.0 - (2.0 * l - 1.0).abs());
-    let x = c * (1.0 - (((h / FRAC_PI_3) % 2.0) - 1.0).abs());
-    let m = l - c / 2.0;
-    let (r, g, b) = match h {
+    let hue = hue % (2.0 * PI);
+    let c = saturation * (1.0 - (2.0 * lightness - 1.0).abs());
+    let x = c * (1.0 - (((hue / FRAC_PI_3) % 2.0) - 1.0).abs());
+    let m = lightness - c / 2.0;
+    let (red, green, blue) = match hue {
         h if h < 1.0 * FRAC_PI_3 => (c, x, 0.0),
         h if h < 2.0 * FRAC_PI_3 => (x, c, 0.0),
         h if h < 3.0 * FRAC_PI_3 => (0.0, c, x),
@@ -25,7 +26,7 @@ fn hls_to_rgb(h: f32, s: f32, l: f32) -> [f32; 3] {
         h if h < 5.0 * FRAC_PI_3 => (x, 0.0, c),
         _ => (c, 0.0, x),
     };
-    [r + m, g + m, b + m]
+    [red + m, green + m, blue + m]
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -164,7 +165,7 @@ impl TileRenderer {
                             let difference_offset = offset - (x, y);
 
                             // Iterate through the tiles and do DrawRectangle and DrawText calls on those.
-                            for tile in tiles.into_iter() {
+                            for tile in tiles {
                                 // DrawTile(d2dDeviceContext.get(), textBrush.get(), tileBrush.get(), tile, differenceOffset);
                                 tile_brush.set_color(&tile.color(self.surface_size));
 

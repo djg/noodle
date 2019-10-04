@@ -27,7 +27,7 @@ macro_rules! impl_comptr {
                 Q: From<$crate::ComPtr<I>>,
                 I: winapi::Interface,
             {
-                self.0.query_interface().map(|qi| Q::from(qi))
+                self.0.query_interface().map(Q::from)
             }
         }
 

@@ -178,10 +178,10 @@ fn subtract(lhs: Rect, rhs: Rect) -> Vec<Rect> {
         return vec![lhs];
     }
 
-    let code = (lhs.left != i.left) as i32 * 0x8
-        | (lhs.top != i.top) as i32 * 0x4
-        | (lhs.right != i.right) as i32 * 0x2
-        | (lhs.bottom != i.bottom) as i32 * 0x1;
+    let code = ((lhs.left != i.left) as i32 * 0x8)
+        | ((lhs.top != i.top) as i32 * 0x4)
+        | ((lhs.right != i.right) as i32 * 0x2)
+        | ((lhs.bottom != i.bottom) as i32);
 
     match code {
         0b0000 => vec![],

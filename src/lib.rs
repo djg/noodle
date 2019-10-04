@@ -132,11 +132,11 @@ impl Size {
         })
     }
 
-    pub fn width(&self) -> i32 {
+    pub fn width(self) -> i32 {
         self.0.cx
     }
 
-    pub fn height(&self) -> i32 {
+    pub fn height(self) -> i32 {
         self.0.cy
     }
 }
