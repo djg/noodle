@@ -1,6 +1,6 @@
 #![feature(clamp)]
 
-use lib_noodle::{d2d, d3d11, dcomp, dxgi, winuser, Rect};
+use noodle::{d2d, d3d11, dcomp, dxgi, winuser, Rect};
 use std::ffi::OsStr;
 use winapi::um::{winuser::*};
 
