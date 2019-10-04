@@ -21,6 +21,7 @@ macro_rules! impl_comptr {
         }
 
         impl $name {
+            #[allow(dead_code)]
             pub fn as_<Q,I>(&self) -> Option<Q>
             where
                 Q: From<$crate::ComPtr<I>>,
