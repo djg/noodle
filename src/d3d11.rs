@@ -3,9 +3,10 @@ use std::ptr;
 use winapi::um::{
     d3d11::{D3D11CreateDevice, ID3D11Device, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION},
     d3dcommon::D3D_DRIVER_TYPE_HARDWARE,
+    unknwnbase::IUnknown
 };
 
-impl_comptr! { Device: [ID3D11Device, ]}
+impl_comptr! { Device: [ID3D11Device, IUnknown]}
 
 pub fn create_hardware_device() -> Device {
     unsafe {

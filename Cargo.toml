@@ -17,10 +17,13 @@ winapi = { version = "*", features = [
     "dcomp",
     "dxgi",
     "dxgi1_3",
+    "dxgi1_4",
     "dxgi1_5",
+    "dxgi1_6",
     "dxgiformat",
     "dxgitype",
     "impl-default",
+    "winbase",
     "winuser" ] }
 
 [features]

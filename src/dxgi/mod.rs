@@ -5,11 +5,11 @@ mod surface;
 mod swap_chain;
 
 use bitflags::bitflags;
-use winapi::shared::{dxgi::*, dxgi1_2::*, dxgiformat::*, dxgitype::*};
+use winapi::shared::{dxgi::*, dxgi1_2::*, dxgi1_3::*, dxgiformat::*, dxgitype::*};
 
 pub use device::{Device, Device1, Device2, Device3, Device4};
-pub use factory::{create_factory, create_factory_2, Factory2};
-pub use output::Output;
+pub use factory::{create_factory, create_factory_2, Adapter1, Factory2};
+pub use output::{Output, Output1, Output2, Output3, Output4, Output5, Output6};
 pub use surface::{Surface, Surface1, Surface2};
 pub use swap_chain::{SwapChain1, SwapChainDesc1};
 
@@ -50,6 +50,7 @@ impl From<AlphaMode> for DXGI_ALPHA_MODE {
 #[derive(Clone, Copy)]
 pub enum Format {
     Bgra8,
+    Nv12,
     Other(DXGI_FORMAT),
 }
 
@@ -57,6 +58,7 @@ impl Into<DXGI_FORMAT> for Format {
     fn into(self) -> DXGI_FORMAT {
         match self {
             Format::Bgra8 => DXGI_FORMAT_B8G8R8A8_UNORM,
+            Format::Nv12 => DXGI_FORMAT_NV12,
             Format::Other(fmt) => fmt,
         }
     }
@@ -112,6 +114,25 @@ impl Into<DXGI_SWAP_EFFECT> for SwapEffect {
             SwapEffect::FlipDiscard => DXGI_SWAP_EFFECT_FLIP_DISCARD,
             SwapEffect::FlipSequential => DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
         }
+    }
+}
+
+bitflags! {
+    pub struct OverlaySupport: DXGI_OVERLAY_SUPPORT_FLAG {
+        const DIRECT = DXGI_OVERLAY_SUPPORT_FLAG_DIRECT;
+        const SCALING = DXGI_OVERLAY_SUPPORT_FLAG_SCALING;
+    }
+}
+
+impl From<DXGI_OVERLAY_SUPPORT_FLAG> for OverlaySupport {
+    fn from(flags: DXGI_OVERLAY_SUPPORT_FLAG) -> Self {
+        OverlaySupport::from_bits_truncate(flags)
+    }
+}
+
+impl From<OverlaySupport> for DXGI_OVERLAY_SUPPORT_FLAG {
+    fn from(flags: OverlaySupport) -> DXGI_OVERLAY_SUPPORT_FLAG {
+        flags.bits()
     }
 }
 
