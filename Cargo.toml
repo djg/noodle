@@ -10,21 +10,26 @@ edition = "2018"
 bitflags = "1.1"
 derive-newtype = "0.2"
 itertools = "0.8"
-winapi = { version = "*", features = [
-    "d2d1",
+
+[dependencies.winapi]
+version = "*"
+git = "https://github.com/djg/winapi-rs"
+branch="mf"
+features = [
     "d2d1_2",
     "d3d11",
+    "d3d11_4",
+    "d3dcompiler",
     "dcomp",
-    "dxgi",
-    "dxgi1_3",
-    "dxgi1_4",
-    "dxgi1_5",
     "dxgi1_6",
     "dxgiformat",
     "dxgitype",
     "impl-default",
+    "mfapi",
+    "mfreadwrite",
+    "objbase",
     "winbase",
-    "winuser" ] }
+    "winuser" ]
 
 [features]
 default = []

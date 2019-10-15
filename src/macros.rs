@@ -1,22 +1,46 @@
+
+#[macro_export]
+macro_rules! hr {
+    ($hr:expr) => {
+        {
+            let hr = unsafe { $hr };
+            assert!(hr == 0);
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! impl_comptr {
     ($name:ident: [$com:ty, $($extra:ty),*]) => {
         #[derive(Clone, Default)]
         pub struct $name(crate $crate::comptr::ComPtr<$com>);
 
-        //pub type $name = $crate::comptr::ComPtr<$com>;
+        impl From<$crate::ComPtr<$com>> for $name {
+            fn from(comptr: $crate::ComPtr<$com>) -> Self {
+                Self(comptr)
+            }
+        }
 
+        impl_comptr! { @impl $name: [$com, $($extra),*] }
+    };
+    ($name:ident($field:ty): [$com:ty, $($extra:ty),*]) => {
+        #[derive(Clone, Default)]
+        pub struct $name(crate $crate::comptr::ComPtr<$com>, $field);
+
+        impl From<($crate::ComPtr<$com>, $field)> for $name {
+            fn from(tuple: ($crate::ComPtr<$com>, $field)) -> Self {
+                Self(tuple.0, tuple.1)
+            }
+        }
+
+        impl_comptr! { @impl $name: [$com, $($extra),*] }
+    };
+    (@impl $name:ident: [$com:ty, $($extra:ty),*]) => {
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 f.debug_struct(stringify!($name))
                     .field("ptr", &self.0.as_ptr())
                     .finish()
-            }
-        }
-
-        impl From<$crate::ComPtr<$com>> for $name {
-            fn from(comptr: $crate::ComPtr<$com>) -> Self {
-                Self(comptr)
             }
         }
 
@@ -61,4 +85,15 @@ macro_rules! impl_interface {
             $tt
         )*
     };
+}
+
+#[macro_export]
+macro_rules! impl_newtype {
+    ($(pub struct $name:ident($base:ty);)*) => {
+        $(#[derive(Clone, Copy, Default, NewType)]
+        #[repr(transparent)]
+        pub struct $name($base);
+
+        )*
+    }
 }

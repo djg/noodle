@@ -4,7 +4,7 @@
 use noodle::{d3d11, dxgi};
 
 fn main() {
-    let d3d11_device = d3d11::create_hardware_device();
+    let d3d11_device = d3d11::create_hardware_device(d3d11::CreateDevice::BGRA_SUPPORT);
     let _dxgi_device: dxgi::Device1 = d3d11_device.as_().unwrap();
 
     let dxgi_factory: dxgi::Factory2 = dxgi::create_factory_2(true);

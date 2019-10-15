@@ -15,3 +15,9 @@ impl ToUtf16 for str {
         self.encode_utf16().chain(Some(0)).collect()
     }
 }
+
+impl<'a> ToUtf16 for &'a str {
+    fn to_utf16(&self) -> Vec<u16> {
+        (*self).to_utf16()
+    }
+}

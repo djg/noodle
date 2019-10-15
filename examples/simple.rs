@@ -53,7 +53,7 @@ fn main() {
     )
     .unwrap();
 
-    let d3d11_device = d3d11::create_hardware_device();
+    let d3d11_device = d3d11::create_hardware_device(d3d11::CreateDevice::BGRA_SUPPORT);
     let dxgi_device: dxgi::Device = d3d11_device.as_().unwrap();
 
     // Create a single-threaded Direct2D factory with debugging information
